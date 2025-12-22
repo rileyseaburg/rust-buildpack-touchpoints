@@ -88,31 +88,17 @@ if [ -d "$WIDGET_DIR" ]; then
     cd "$WIDGET_DIR"
     echo "Building in $WIDGET_DIR"
     
-    # Calculate checksum of source files to detect changes
-    CURRENT_CHECKSUM=$(find src -name "*.rs" -exec cat {} \; 2>/dev/null | sha256sum | cut -d' ' -f1)
-    CACHED_CHECKSUM_FILE="$CACHE_DIR/rust_source_checksum"
-    CACHED_CHECKSUM=""
-    if [ -f "$CACHED_CHECKSUM_FILE" ]; then
-        CACHED_CHECKSUM=$(cat "$CACHED_CHECKSUM_FILE")
-    fi
-    
-    echo "Current source checksum: $CURRENT_CHECKSUM"
-    echo "Cached source checksum:  $CACHED_CHECKSUM"
-    
-    # Force clean rebuild if source files changed
-    if [ "$CURRENT_CHECKSUM" != "$CACHED_CHECKSUM" ]; then
-        echo "Source files changed - forcing clean rebuild"
-        rm -rf target 2>/dev/null || true
-        # Save new checksum
-        mkdir -p "$CACHE_DIR"
-        echo "$CURRENT_CHECKSUM" > "$CACHED_CHECKSUM_FILE"
-    else
-        echo "Source files unchanged - using cached build artifacts"
-    fi
-    
-    # Clean any prebuilt .so files (they were built on CircleCI with wrong paths)
-    rm -rf target/release/libwidget_renderer.so 2>/dev/null || true
+    # ALWAYS force clean Rust rebuild to avoid stale cached artifacts
+    # CF's build cache has proven problematic - cached .so files don't reflect source changes
+    echo "-----> Forcing clean Rust rebuild (caching disabled)"
+    echo "Clearing target directory..."
+    rm -rf target 2>/dev/null || true
+    echo "Clearing any cached Rust artifacts in CACHE_DIR..."
+    rm -rf "$CACHE_DIR"/rust* 2>/dev/null || true
+    rm -rf "$CACHE_DIR"/target 2>/dev/null || true
+    rm -rf "$CACHE_DIR"/cargo* 2>/dev/null || true
     rm -f libwidget_renderer.so 2>/dev/null || true
+    echo "Clean slate ready for fresh Rust compilation"
     
     # Build (will be fast if cached, full rebuild if cleaned)
     cargo build --release
